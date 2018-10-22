@@ -4,7 +4,7 @@
 #Baixar banco
 rm(list = ls())
 
-
+library(readxl)
 library(jsonlite)
 library(tidyverse)
 library(rvest)
@@ -81,16 +81,31 @@ total_coligacao<- total_coligacao %>% group_by(coligacao, UF) %>%
   summarise(votos_colig=sum(quantidade))
 
 total_coligacao<- left_join(total_coligacao, total_votos, by = "UF")
-total_coligacao<-total_coligacao %>% mutate(cadeiras_colig=floor(votos_colig/QE))
+total_coligacao<-total_coligacao %>% mutate(cadeiras_round0=floor(votos_colig/QE))
 
-sobras<-total_coligacao %>% group_by(UF, eleitos_UF) %>% summarise(eleitos_UFC=sum(cadeiras_colig)) %>% 
+sobras<-total_coligacao %>% group_by(UF, eleitos_UF) %>% summarise(eleitos_UFC=sum(cadeiras_round0)) %>% 
   mutate(dif=eleitos_UF-eleitos_UFC) %>% arrange(UF)
 
 #agora vamos calcular as sobras por estado na regra antiga (nanicos não entram na distribuição)------------------------
 
-total_coligacao_exnanicos<- total_coligacao %>% filter(cadeiras_colig>0)
+total_coligacao_exnanicos<- total_coligacao %>% filter(cadeiras_round0>0)
 
 #Vamos calcular a média com cada rodada
+
+rodadas<-seq(1:max(sobras$dif))
+
+for (i in 1:1){
+  print(i)
+  x<-total_coligacao_exnanicos %>% arrange(UF, cadeiras_round) %>% 
+  group_by(UF, coligacao) %>%
+  assign(paste0("media",i),votos_colig/get((paste0("cadeiras_round", i-1)))+1) %>% 
+           ungroup() %>%  group_by(UF) %>% 
+  assign(paste0("cadeiras_round",i),ifelse(paste0("media",i)==max(paste0("media",i)),1,0)+get((paste0("cadeiras_round", i-1))))
+  if(i==1){total_coligacao_exnanicos<-x}
+  {x<-x %>% select(1:2, -2, -1)
+  }
+
+  total_coligacao_exnanicos<-left_join(total_coligacao_exnanicos, x, by = c("partido", "UF"))}
 
 total_coligacao_exnanicos<-total_coligacao_exnanicos %>% arrange(UF, cadeiras_colig) %>% 
   group_by(UF, coligacao) %>% 
